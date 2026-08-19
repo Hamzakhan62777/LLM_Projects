@@ -51,7 +51,7 @@ def create_visual_prompt(title: str, keywords: str) -> str:
     """
     
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash-lite",
         contents=instruction,
     )
     return response.text.strip().replace("\n", " ")
@@ -65,7 +65,7 @@ def get_pollinations_image_url(prompt: str, width: int = 1024, height: int = 600
 # 6. Helper: Blog Text Generator
 def generate_blog_post(title: str, kw: str, count: int):
     client = genai.Client(api_key=google_gemini_api_key)
-    model = "gemini-2.5-flash"
+    model = "gemini-3.5-flash-lite"
 
     user_prompt = f"""
     Please generate a complete, high-quality blog post with the following requirements:
