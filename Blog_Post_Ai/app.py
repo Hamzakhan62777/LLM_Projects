@@ -5,21 +5,33 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
-# 1. Page Configuration
+# 1. Page Configuration (Must be first)
 st.set_page_config(
     page_title="BlogCraft AI",
     page_icon="✍️",
     layout="wide"
 )
 
-# 2. Safely Load API Key (Streamlit Cloud Secrets or Local Environment)
+# 2. Safely Load API Key (Check Cloud Secrets first, then Env, then local file)
+google_gemini_api_key = None
+
 try:
-    from apikey import google_gemini_api_key
-except ImportError:
-    try:
+    if "GEMINI_API_KEY" in st.secrets:
         google_gemini_api_key = st.secrets["GEMINI_API_KEY"]
-    except Exception:
-        google_gemini_api_key = os.environ.get("GEMINI_API_KEY")
+except Exception:
+    pass
+
+if not google_gemini_api_key:
+    google_gemini_api_key = os.environ.get("GEMINI_API_KEY")
+
+if not google_gemini_api_key:
+    try:
+        from apikey import google_gemini_api_key as local_key
+        if local_key and "ENTER_YOUR" not in str(local_key):
+            google_gemini_api_key = local_key
+    except ImportError:
+        pass
+
 # 3. Main Header
 st.title("✍️ BlogCraft AI — Intelligent Content Generation")
 st.subheader("🌐 AI-powered content creation tailored to your niche and audience.")
@@ -39,7 +51,7 @@ def create_visual_prompt(title: str, keywords: str) -> str:
     """
     
     response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",
+        model="gemini-2.5-flash",
         contents=instruction,
     )
     return response.text.strip().replace("\n", " ")
@@ -53,7 +65,7 @@ def get_pollinations_image_url(prompt: str, width: int = 1024, height: int = 600
 # 6. Helper: Blog Text Generator
 def generate_blog_post(title: str, kw: str, count: int):
     client = genai.Client(api_key=google_gemini_api_key)
-    model = "gemini-3.5-flash-lite"
+    model = "gemini-2.5-flash"
 
     user_prompt = f"""
     Please generate a complete, high-quality blog post with the following requirements:
@@ -102,22 +114,29 @@ with st.sidebar:
 
 # 8. Main Execution Pipeline
 if submit_button:
-    if not blog_title.strip() or not keywords.strip():
+    if not google_gemini_api_key or "ENTER_YOUR" in str(google_gemini_api_key):
+        st.error("❌ Gemini API Key is missing. Please configure `GEMINI_API_KEY` in Streamlit Cloud Secrets.")
+    elif not blog_title.strip() or not keywords.strip():
         st.warning("⚠️ Please provide both a Blog Title and Keywords before generating.")
     else:
         st.divider()
 
         # Step A: Generate and Display 1 Hero Image on Top
         with st.spinner("Designing featured hero image..."):
-            visual_prompt = create_visual_prompt(blog_title, keywords)
-            hero_image_url = get_pollinations_image_url(visual_prompt)
-            st.image(hero_image_url, caption=f"Hero Visual: {visual_prompt}", use_container_width=True)
+            try:
+                visual_prompt = create_visual_prompt(blog_title, keywords)
+                hero_image_url = get_pollinations_image_url(visual_prompt)
+                st.image(hero_image_url, caption=f"Hero Visual: {visual_prompt}", use_container_width=True)
+            except Exception as e:
+                st.error(f"Image generation failed: {e}")
 
         st.divider()
         
         # Step B: Stream Blog Article Below
         st.subheader(f"📝 Article: {blog_title}")
         with st.spinner("Crafting your blog post..."):
-            st.write_stream(generate_blog_post(blog_title, keywords, num_word))
-        
-        st.success("🎉 Blog post and hero visual generated successfully!")
+            try:
+                st.write_stream(generate_blog_post(blog_title, keywords, num_word))
+                st.success("🎉 Blog post and hero visual generated successfully!")
+            except Exception as e:
+                st.error(f"Text generation failed: {e}")
